@@ -1,0 +1,48 @@
+(b)
+(i) Uniprocessor Results (1 kernel thread)
+Arguments used: 55 50 40000 20 10 1
+
+Version        Optimization   User Time (s)
+-------------------------------------------
+BUSY           no -O2          1.76
+BUSY           -O2             1.64
+NOBUSY         no -O2          2.36
+NOBUSY         -O2             2.20
+-------------------------------------------
+
+(ii) Explanation (Uniprocessor)
+On a single kernel thread, the NOBUSY version runs about 34% slower than the BUSY version in both
+unoptimized and optimized builds. The BUSY version spins actively in user space while waiting, avoiding
+context switches. NOBUSY performs real blocking operations, introducing scheduler overhead each time
+a thread sleeps or wakes. Because the waits are short (buffer = 20, delay = 10), repeated blocking dominates
+execution time, making BUSY faster. Optimization (-O2) reduces all runtimes but does not eliminate the gap,
+as BUSY continues to avoid kernel-level blocking costs.
+
+(iii) Multiprocessor Results (4 kernel threads)
+Arguments used: 55 50 40000 20 10 4
+
+Version        Optimization   User Time (s)
+-------------------------------------------
+BUSY           no -O2          1.76
+BUSY           -O2             1.64
+NOBUSY         no -O2          2.40
+NOBUSY         -O2             2.14
+-------------------------------------------
+
+(iv) Explanation (Multiprocessor)
+With four kernel threads, NOBUSY is roughly 36% slower than BUSY without optimization and 30% slower
+with optimization. Spinning wastes fewer cycles on multiple cores because other threads can continue
+executing. BUSY benefits from this overlap, while NOBUSY still incurs scheduler wakeups and cross-core
+cache-line synchronization. Both improve under -O2, but BUSY remains consistently faster.
+
+(v) Reason for Performance Difference (BUSY vs NOBUSY)
+In BUSY, threads spin instead of blocking, so the number of blocking calls (blocks()) is low. NOBUSY performs
+many true blocks and yields the CPU, leading to high context-switch overhead. Although NOBUSY uses CPU
+time more politely, frequent kernel interactions and cache invalidations make it slower for short waits.
+Therefore, BUSY achieves lower user time by avoiding these high-cost transitions.
+
+(vi) Reason for Uniprocessor vs Multiprocessor Difference
+On a uniprocessor, spinning can monopolize the only CPU, but since waits are brief, BUSY still performs best.
+On a multiprocessor, spinning becomes even cheaper—spinning threads occupy separate cores while others
+continue running. NOBUSY suffers from cross-core synchronization and scheduling latency, so BUSY remains
+faster on both architectures.
